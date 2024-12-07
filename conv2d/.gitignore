@@ -1,0 +1,5 @@
+# Do not add SO files to GIT.
+*.so
+
+# Do not add build outputs to GIT, if using setuptools.
+build/*
