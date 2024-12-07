@@ -66,3 +66,5 @@ void launch_conv2d(T *h_result, T *h_x, T *h_y,
     cudaFree(d_y);
     cudaFree(d_result);
 }
+
+template void launch_conv2d<float>(float *h_result, float *h_x, float *h_y, int Cin, int H, int W, int Cout, int K);

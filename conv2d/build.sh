@@ -12,12 +12,13 @@ else
 fi
 
 # Compile the CUDA source file to an object file
-nvcc -c src/${MODULE_NAME}_impl.cu \
+nvcc -c src/conv2d_impl.cu \
   -std=c++17 \
   -O3 \
   -lineinfo \
   -I/usr/local/cuda/include \
-  -o ${MODULE_NAME}_impl.o
+  -Xcompiler -fPIC \
+  -o conv2d_impl.o
 
 # Compile the C++ source file to an object file
 g++ -c -std=c++17 -O3 -fPIC ${PYBIND11_INCLUDES} \
