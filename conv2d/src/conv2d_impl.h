@@ -1,7 +1,7 @@
 #pragma once
 
 template <typename T>
-__global__ void conv_kernel(
+void conv_kernel(
     T* result, 
     const T* input, 
     const T* filter, 

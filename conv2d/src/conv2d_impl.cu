@@ -1,10 +1,10 @@
 #include "conv2d_impl.h"
 
-template <typename T>
 // Add batch, stride and padding later
 // we could have 1 block <-> 1 output channel
 // and 1 thread <-> 1 output pixel
-__global__ void conv_kernel(T *result, T *input, T *filter, int Cin, int H, int W, int Cout, int K) {
+template <typename T>
+__global__ void conv_kernel(T *result, const T *input, const T *filter, int Cin, int H, int W, int Cout, int K) {
     int x = threadIdx.x;
     int y = threadIdx.y;
     int z = blockIdx.x;
@@ -13,7 +13,7 @@ __global__ void conv_kernel(T *result, T *input, T *filter, int Cin, int H, int 
     int W_out = W - K + 1;
 
     T sum = 0;
-    if (x < h_out && y < W_out){
+    if (x < H_out && y < W_out){
         // loop over input channels
         for (int i = 0; i < Cin; i++) {
             // loop over filter dimensions
