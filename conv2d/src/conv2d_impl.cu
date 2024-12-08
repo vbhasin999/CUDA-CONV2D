@@ -90,7 +90,7 @@ __global__ void conv_kernel_batched(T *result, const T *input, const T *filter, 
             for (int j = 0; j < Kh; ++j){
                 for (int k = 0; k < Kw; ++k){
                     
-                    sum += input[(z * Cin * H * W) + (i * H * W) + ((t_r + j) * W) + (k + t_c) ] * filter[(x * Cin * Kh * Kw) + (i * Kh * Kw) + (j * Kw) ];
+                    sum += input[(z * Cin * H * W) + (i * H * W) + ((t_r + j) * W) + (k + t_c) ] * filter[(x * Cin * Kh * Kw) + (i * Kh * Kw) + (j * Kw) + k ];
     
                 }
             }
