@@ -32,7 +32,7 @@ __global__ void conv_kernel_basic(T *result, const T *input, const T *filter, in
 }
 
 template <typename T>
-void launch_conv2d_basic(T *h_result, T *h_x, T *h_y, 
+void launch_conv2d_basic(T *h_result, const T *h_x, const T *h_y, 
                    int Cin, int H, int W, int Cout, int K) {
     // Output dimensions
     int H_out = H - K + 1;
@@ -106,7 +106,7 @@ __global__ void conv_kernel_batched(T *result, const T *input, const T *filter, 
 }
 
 template <typename T>
-void launch_conv2d_batched(T *h_result, T *h_x, T *h_y, int N, int Cin, int H, int W, int Cout, int Kh, int Kw) {
+void launch_conv2d_batched(T *h_result, const T *h_x, const T *h_y, int N, int Cin, int H, int W, int Cout, int Kh, int Kw) {
     // Output dimensions
     int H_out = H - Kh + 1;
     int W_out = W - Kw + 1;
@@ -176,6 +176,6 @@ void ref_conv(T *result, const T *input, const T *filter, int N, int Cin, int H,
 
 }
 
-template void launch_conv2d_basic<float>(float *h_result, float *h_x, float *h_y, int Cin, int H, int W, int Cout, int K);
-template void launch_conv2d_batched<float>(float *h_result, float *h_x, float *h_y, int N, int Cin, int H, int W, int Cout, int Kh, int Kw);
+template void launch_conv2d_basic<float>(float *h_result, const float *h_x, const float *h_y, int Cin, int H, int W, int Cout, int K);
+template void launch_conv2d_batched<float>(float *h_result, const float *h_x, const float *h_y, int N, int Cin, int H, int W, int Cout, int Kh, int Kw);
 template void ref_conv<float>(float *h_result, const float *h_x, const float *h_y, int N, int Cin, int H, int W, int Cout, int Kh, int Kw);
