@@ -74,7 +74,7 @@ void launch_conv2d_basic(T *h_result, const T *h_x, const T *h_y,
 // Y dim for height, width
 template <typename T>
 __global__ void conv_kernel_batched(T *result, const T *input, const T *filter, int N, int Cin, int H, int W, int Cout, int Kh, int Kw) {
-    int x = blockIdx.x; // output channel
+    int x = threadIdx.x; // output channel
     int y = threadIdx.y; // output pixel
     int z = threadIdx.z; // batch
 
@@ -126,8 +126,8 @@ void launch_conv2d_batched(T *h_result, const T *h_x, const T *h_y, int N, int C
     cudaMemcpy(d_y, h_y, filter_size, cudaMemcpyHostToDevice);
 
     // Define grid and block dimensions
-    dim3 threadsPerBlock(1, W_out * H_out, N); // one thread per output pixel
-    dim3 numBlocks(Cout);          // One block per output channel and input channel
+    dim3 threadsPerBlock(Cout, W_out * H_out, N); // one thread per output pixel
+    dim3 numBlocks(1);          // One block per output channel and input channel
 
     // Launch kernel
     conv_kernel_batched<<<numBlocks, threadsPerBlock>>>(d_result, d_x, d_y, N, Cin, H, W, Cout, Kh, Kw);
