@@ -1,4 +1,5 @@
 #include "conv2d_impl.h"
+#include <stdio.h>
 
 // Add batch, stride and padding later
 // we could have 1 block <-> 1 output channel
@@ -89,7 +90,7 @@ __global__ void conv_kernel_batched(T *result, const T *input, const T *filter, 
         for (int i = 0; i < Cin; ++i ){
             for (int j = 0; j < Kh; ++j){
                 for (int k = 0; k < Kw; ++k){
-                    
+                    printf("z: %d, x: %d, y: %d, i: %d, j: %d, k: %d\n sum += %f * %f", z, x, y, i, j, k, input[(z * Cin * H * W) + (i * H * W) + ((t_r + j) * W) + (k + t_c) ], filter[(x * Cin * Kh * Kw) + (i * Kh * Kw) + (j * Kw) + k ]);
                     sum += input[(z * Cin * H * W) + (i * H * W) + ((t_r + j) * W) + (k + t_c) ] * filter[(x * Cin * Kh * Kw) + (i * Kh * Kw) + (j * Kw) + k ];
     
                 }
