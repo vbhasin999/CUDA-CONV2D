@@ -129,7 +129,7 @@ void launch_conv2d_batched(T *h_result, T *h_x, T *h_y, int N, int Cin, int H, i
     dim3 numBlocks(Cout);          // One block per output channel and input channel
 
     // Launch kernel
-    conv_kernel_batched<<<numBlocks, threadsPerBlock>>>(d_result, d_x, d_y, Cin, H, W, Cout, Kh, Kw);
+    conv_kernel_batched<<<numBlocks, threadsPerBlock>>>(d_result, d_x, d_y, N, Cin, H, W, Cout, Kh, Kw);
 
     // Copy results back to host
     cudaMemcpy(h_result, d_result, output_size, cudaMemcpyDeviceToHost);
@@ -142,8 +142,8 @@ void launch_conv2d_batched(T *h_result, T *h_x, T *h_y, int N, int Cin, int H, i
 
 template <typename T>
 void ref_conv(T *result, const T *input, const T *filter, int N, int Cin, int H, int W, int Cout, int Kh, int Kw){
-    int H_out = H - K + 1;
-    int W_out = W - K + 1;
+    int H_out = H - Kh + 1;
+    int W_out = W - Kw + 1;
 
     for (int n = 0; n < N; ++n) {
         for (int cout = 0; cout < Cout; ++cout) {
