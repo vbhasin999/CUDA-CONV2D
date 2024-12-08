@@ -142,6 +142,8 @@ void launch_conv2d_batched(T *h_result, T *h_x, T *h_y, int N, int Cin, int H, i
 
 template <typename T>
 void ref_conv(T *result, const T *input, const T *filter, int N, int Cin, int H, int W, int Cout, int Kh, int Kw){
+    int H_out = H - K + 1;
+    int W_out = W - K + 1;
 
     for (int n = 0; n < N; ++n) {
         for (int cout = 0; cout < Cout; ++cout) {
@@ -175,4 +177,4 @@ void ref_conv(T *result, const T *input, const T *filter, int N, int Cin, int H,
 
 template void launch_conv2d_basic<float>(float *h_result, float *h_x, float *h_y, int Cin, int H, int W, int Cout, int K);
 template void launch_conv2d_batched<float>(float *h_result, float *h_x, float *h_y, int N, int Cin, int H, int W, int Cout, int Kh, int Kw);
-template void ref_conv<float>(float *h_result, float *h_x, float *h_y, int N, int Cin, int H, int W, int Cout, int Kh, int Kw);
+template void ref_conv<float>(float *h_result, const float *h_x, const float *h_y, int N, int Cin, int H, int W, int Cout, int Kh, int Kw);
