@@ -58,6 +58,11 @@ void launch_conv2d_basic(T *h_result, const T *h_x, const T *h_y,
 
     // Launch kernel
     conv_kernel_basic<<<numBlocks, threadsPerBlock>>>(d_result, d_x, d_y, Cin, H, W, Cout, K);
+    cudaDeviceSynchronize();
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        fprintf(stderr, "CUDA error: %s\n", cudaGetErrorString(err));
+    }
 
     // Copy results back to host
     cudaMemcpy(h_result, d_result, output_size, cudaMemcpyDeviceToHost);
@@ -131,6 +136,11 @@ void launch_conv2d_batched(T *h_result, const T *h_x, const T *h_y, int N, int C
 
     // Launch kernel
     conv_kernel_batched<<<numBlocks, threadsPerBlock>>>(d_result, d_x, d_y, N, Cin, H, W, Cout, Kh, Kw);
+    cudaDeviceSynchronize();
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        fprintf(stderr, "CUDA error: %s\n", cudaGetErrorString(err));
+    }
 
     // Copy results back to host
     cudaMemcpy(h_result, d_result, output_size, cudaMemcpyDeviceToHost);
