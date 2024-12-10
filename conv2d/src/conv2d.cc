@@ -46,6 +46,8 @@ PYBIND11_MODULE(conv2d, m) {
         }
 
         // Extract dimensions
+        int H_out = H - K + 1;
+        int W_out = W - K + 1;
         auto result_shape = std::vector<ssize_t>{Cout, H - K + 1, W - K + 1};
 
         // Allocate output array
@@ -53,7 +55,7 @@ PYBIND11_MODULE(conv2d, m) {
         py::buffer_info result_info = result.request();
 
         // Call the CUDA kernel launcher
-        launch_conv2d_batched(
+        launch_conv2d_opt(
             static_cast<float *>(result_info.ptr),
             static_cast<float *>(input_info.ptr),
             static_cast<float *>(filter_info.ptr),
@@ -65,7 +67,7 @@ PYBIND11_MODULE(conv2d, m) {
        py::arg("input"), py::arg("filter"), py::arg("Cin"), py::arg("H"), py::arg("W"), py::arg("Cout"), py::arg("K"));  
 
     
-    m.def("conv2d_ref", [](py::array_t<float> input, py::array_t<float> filter, int N, int Cin, int H, int W, int Cout, int Kh, int Kw) {
+    m.def("conv2d_ref", [](py::array_t<float> input, py::array_t<float> filter, int Cin, int H, int W, int Cout, int K) {
         // Ensure proper array dimensions
         py::buffer_info input_info = input.request();
         py::buffer_info filter_info = filter.request();
@@ -75,7 +77,7 @@ PYBIND11_MODULE(conv2d, m) {
         }
 
         // Extract dimensions
-        auto result_shape = std::vector<ssize_t>{N, Cout, H - K + 1, W - K + 1};
+        auto result_shape = std::vector<ssize_t>{Cout, H - K + 1, W - K + 1};
 
         // Allocate output array
         py::array_t<float> result(result_shape);

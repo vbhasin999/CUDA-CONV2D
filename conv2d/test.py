@@ -2,6 +2,7 @@ import numpy as np
 import conv2d  # The compiled module
 import time
 import argparse
+import conv2d
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="Run Conv2D and compare with reference implementation.")
@@ -22,7 +23,7 @@ filter_tensor = np.random.rand(Cout, Cin, K, K).astype(np.float32)  # Filter: (C
 
 # Call the conv2d function and time it
 start_time_cuda = time.time()
-output_tensor = conv2d.conv2d(input_tensor, filter_tensor, Cin, H, W, Cout, K)
+output_tensor = conv2d.conv2d_opt(input_tensor, filter_tensor, Cin, H, W, Cout, K)
 end_time_cuda = time.time()
 
 print(f"CUDA Conv2D Execution Time: {end_time_cuda - start_time_cuda:.6f} seconds")
@@ -33,9 +34,9 @@ W_out = W - K + 1
 
 
 start_time_ref = time.time()
-reference_output = conv2d.conv2d_ref(input_tensor, filter_tensor, Cin, H, W, Cout, K, H_out, W_out)
+reference_output = conv2d.conv2d_ref(input_tensor, filter_tensor, Cin, H, W, Cout, K)
 end_time_ref = time.time()
-
+print(f"Reference Conv2D Execution Time: {end_time_ref - start_time_ref:.6f} seconds")
 # Compare results
 print("Output tensor shape:", output_tensor.shape)
 print("Reference tensor shape:", reference_output.shape)
@@ -43,4 +44,3 @@ print("Are outputs close:", np.allclose(output_tensor, reference_output, atol=1e
 
 # Print timing information
 
-print(f"Reference Conv2D Execution Time: {end_time_ref - start_time_ref:.6f} seconds")
