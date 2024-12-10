@@ -36,17 +36,17 @@ PYBIND11_MODULE(conv2d, m) {
        py::arg("input"), py::arg("filter"), py::arg("Cin"), py::arg("H"), py::arg("W"), py::arg("Cout"), py::arg("K"));
 
 
-    m.def("conv2d_batched", [](py::array_t<float> input, py::array_t<float> filter, int N, int Cin, int H, int W, int Cout, int Kh, int Kw) {
+    m.def("conv2d_opt", [](py::array_t<float> input, py::array_t<float> filter, int Cin, int H, int W, int Cout, int K) {
         // Ensure proper array dimensions
         py::buffer_info input_info = input.request();
         py::buffer_info filter_info = filter.request();
 
-        if (input_info.ndim != 4 || filter_info.ndim != 4) {
-            throw std::runtime_error("Invalid input dimensions. Input must be (N, Cin, H, W) and filter must be (Cout, Cin, Kh, Kw).");
+        if (input_info.ndim != 3 || filter_info.ndim != 4) {
+            throw std::runtime_error("Invalid input dimensions. Input must be (Cin, H, W) and filter must be (Cout, Cin, K, K).");
         }
 
         // Extract dimensions
-        auto result_shape = std::vector<ssize_t>{N, Cout, H - Kh + 1, W - Kw + 1};
+        auto result_shape = std::vector<ssize_t>{Cout, H - K + 1, W - K + 1};
 
         // Allocate output array
         py::array_t<float> result(result_shape);
@@ -57,12 +57,12 @@ PYBIND11_MODULE(conv2d, m) {
             static_cast<float *>(result_info.ptr),
             static_cast<float *>(input_info.ptr),
             static_cast<float *>(filter_info.ptr),
-            N, Cin, H, W, Cout, Kh, Kw
+            Cin, H, W, Cout, K
         );
 
         return result;
     }, "Perform batched 2D convolution using CUDA",
-       py::arg("input"), py::arg("filter"), py::arg("N"), py::arg("Cin"), py::arg("H"), py::arg("W"), py::arg("Cout"), py::arg("Kh"), py::arg("Kw"));  
+       py::arg("input"), py::arg("filter"), py::arg("Cin"), py::arg("H"), py::arg("W"), py::arg("Cout"), py::arg("K"));  
 
     
     m.def("conv2d_ref", [](py::array_t<float> input, py::array_t<float> filter, int N, int Cin, int H, int W, int Cout, int Kh, int Kw) {
@@ -70,12 +70,12 @@ PYBIND11_MODULE(conv2d, m) {
         py::buffer_info input_info = input.request();
         py::buffer_info filter_info = filter.request();
 
-        if (input_info.ndim != 4 || filter_info.ndim != 4) {
-            throw std::runtime_error("Invalid input dimensions. Input must be (N, Cin, H, W) and filter must be (Cout, Cin, Kh, Kw).");
+        if (input_info.ndim != 3 || filter_info.ndim != 4) {
+            throw std::runtime_error("Invalid input dimensions. Input must be (Cin, H, W) and filter must be (Cout, Cin, K, K).");
         }
 
         // Extract dimensions
-        auto result_shape = std::vector<ssize_t>{N, Cout, H - Kh + 1, W - Kw + 1};
+        auto result_shape = std::vector<ssize_t>{N, Cout, H - K + 1, W - K + 1};
 
         // Allocate output array
         py::array_t<float> result(result_shape);
@@ -86,10 +86,10 @@ PYBIND11_MODULE(conv2d, m) {
             static_cast<float *>(result_info.ptr),
             static_cast<float *>(input_info.ptr),
             static_cast<float *>(filter_info.ptr),
-            N, Cin, H, W, Cout, Kh, Kw
+            Cin, H, W, Cout, K
         );
 
         return result;
     }, "Perform reference cpp batched 2d conv",
-       py::arg("input"), py::arg("filter"), py::arg("N"), py::arg("Cin"), py::arg("H"), py::arg("W"), py::arg("Cout"), py::arg("Kh"), py::arg("Kw"));      
+       py::arg("input"), py::arg("filter"), py::arg("Cin"), py::arg("H"), py::arg("W"), py::arg("Cout"), py::arg("K"));      
 }

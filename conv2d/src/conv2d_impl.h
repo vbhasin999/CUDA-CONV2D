@@ -13,17 +13,15 @@ void launch_conv2d_basic(
 );
 
 template <typename T>
-void launch_conv2d_batched(
+void launch_conv2d_opt(
     T* h_result, 
     const T* h_x, 
     const T* h_y, 
-    int N,
     int Cin, 
     int H, 
     int W, 
     int Cout, 
-    int Kh,
-    int Kw
+    int K
 );
 
 template <typename T>
@@ -31,11 +29,9 @@ void ref_conv(
     T* h_result, 
     const T* h_x, 
     const T* h_y, 
-    int N,
     int Cin, 
     int H, 
     int W, 
     int Cout, 
-    int Kh,
-    int Kw
+    int K
 );
