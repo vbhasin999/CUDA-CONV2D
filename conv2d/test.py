@@ -30,16 +30,10 @@ print(f"CUDA Conv2D Execution Time: {end_time_cuda - start_time_cuda:.6f} second
 # Reference implementation of convolution and time it
 H_out = H - K + 1
 W_out = W - K + 1
-reference_output = np.zeros((Cout, H_out, W_out), dtype=np.float32)
+
 
 start_time_ref = time.time()
-for cout in range(Cout):
-    for h in range(H_out):
-        for w in range(W_out):
-            for cin in range(Cin):
-                reference_output[cout, h, w] += np.sum(
-                    input_tensor[cin, h:h+K, w:w+K] * filter_tensor[cout, cin]
-                )
+reference_output = conv2d.conv2d_ref(input_tensor, filter_tensor, Cin, H, W, Cout, K, H_out, W_out)
 end_time_ref = time.time()
 
 # Compare results
