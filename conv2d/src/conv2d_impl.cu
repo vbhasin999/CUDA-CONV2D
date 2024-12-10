@@ -1,6 +1,10 @@
 #include "conv2d_impl.h"
 #include <stdio.h>
 
+#define BLOCK_DIM_X 16
+#define BLOCK_DIM_Y 16
+#define BLOCK_DIM_Z 2
+
 // Add batch, stride and padding later
 // we could have 1 block <-> 1 output channel
 // and 1 thread <-> 1 output pixel
@@ -110,8 +114,6 @@ void launch_conv2d_basic(T *h_result, const T *h_x, const T *h_y,
     
 // }
 
-
-// 1 thread should handle the contribution of 1 input channel to 1 output channel
 template <typename T>
 __global__ void conv_kernel_opt(
     T* __restrict__ result, 
@@ -121,46 +123,49 @@ __global__ void conv_kernel_opt(
 
     int out_x = threadIdx.x + blockIdx.x * blockDim.x;  // Output width index
     int out_y = threadIdx.y + blockIdx.y * blockDim.y;  // Output height index
-    int out_c = blockIdx.z;                            // Output channel index
-    int in_c = threadIdx.z;                            // Input channel index within block
+    int out_c = blockIdx.z;                            // Output channel index                 
 
     int H_out = H - K + 1;
     int W_out = W - K + 1;
 
     // Shared memory for reduction
-    __shared__ T partial_sums[16][16];  
+    __shared__ T partial_sums[BLOCK_DIM_X][BLOCK_DIM_Y];  
     // Initialize shared memory only once per block
     if (threadIdx.z == 0) partial_sums[threadIdx.x][threadIdx.y]= 0.0f;
 
     __syncthreads();
 
     T local_sum = 0;
-    if (out_x < H_out && out_y < W_out){
-        // loop over filter dimensions
-        for (int kx = 0; kx < K; ++kx) { // loop over kernel rows
-            for (int ky = 0; ky < K; ++ky) { // loop over kernel columns
-                // input of shape (Cin, H, W) with strides (H*W, W, 1)
-                // filter of shape (Cout, Cin, K, K) with strides (Cin*K*K, K*K, K, 1)
-                if ((out_x + kx < W) && (out_y + ky < H)) {
-                    local_sum += input[in_c * H * W + (out_x + kx) * W + (out_y + ky)] *
-                                filter[out_c * Cin * K * K + in_c * K * K + kx * K + ky];
+    if (out_x < H_out && out_y < W_out) {
+        // Loop over input channels in chunks
+        for (int in_c = threadIdx.z; in_c < Cin; in_c += BLOCK_DIM_Z) {
+            for (int kx = 0; kx < K; ++kx) { // Kernel rows
+                for (int ky = 0; ky < K; ++ky) { // Kernel columns
+                    int in_x = out_x + kx;
+                    int in_y = out_y + ky;
+
+                    if (in_x < W && in_y < H) {  // Bounds check
+                        local_sum += input[in_c * H * W + in_y * W + in_x] *
+                                     filter[out_c * Cin * K * K + in_c * K * K + ky * K + kx];
+                    }
                 }
             }
         }
 
-
+        // Atomic addition to shared memory
         atomicAdd(&partial_sums[threadIdx.x][threadIdx.y], local_sum);
+    }
 
-        // printf("\n\ntx %d \tty %d added %f to smem, smem is now %f", threadIdx.x, threadIdx.y, local_sum, partial_sums[threadIdx.x][threadIdx.y]);
+    __syncthreads();
 
-        __syncthreads();
-
-        if (threadIdx.z == 0) {
-            // result of shape (Cout, H_out, W_out) with strides (H_out * W_out, W_out, 1)
-            result[out_c * H_out * W_out + out_x * W_out + out_y] = partial_sums[threadIdx.x][threadIdx.y];
+    // Write final result to global memory
+    if (threadIdx.z == 0) {
+        if (out_x < H_out && out_y < W_out) {
+            result[out_c * H_out * W_out + out_y * W_out + out_x] = partial_sums[threadIdx.x][threadIdx.y];
         }
     }
 }
+
 
 template <typename T>
 void launch_conv2d_opt(T *h_result, const T *h_x, const T *h_y, int Cin, int H, int W, int Cout, int K) {
@@ -192,7 +197,7 @@ void launch_conv2d_opt(T *h_result, const T *h_x, const T *h_y, int Cin, int H, 
     }
 
     // Define grid and block dimensions
-    dim3 blockDim(16, 16, 3);  // Threads per block: 16x16 spatial, 4 for input channels
+    dim3 blockDim(BLOCK_DIM_X, BLOCK_DIM_Y, BLOCK_DIM_Z);  
     dim3 gridDim((W_out + blockDim.x - 1) / blockDim.x,
                 (H_out + blockDim.y - 1) / blockDim.y,
                 Cout);   
