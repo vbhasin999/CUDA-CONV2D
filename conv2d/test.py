@@ -41,6 +41,8 @@ cuda_time_basic = end_time_cuda_basic - start_time_cuda_basic
 print(f"CUDA Conv2D BASIC Execution Time: {cuda_time_basic:.6f} seconds")
 print(f"Speedup: {ref_time / cuda_time_basic :.2f}x")
 print("Are outputs close:", np.allclose(output_tensor, reference_output, atol=1e-5))
+# print(f'out: \n{output_tensor} \nref: \n{reference_output}')
+
 
 
 # Call the conv2d function and time it
@@ -61,7 +63,6 @@ print("Are outputs close:", np.allclose(output_tensor, reference_output, atol=1e
 # print(f"\nCorrectness:")
 # print("Output tensor shape:", output_tensor.shape)
 # print("Reference tensor shape:", reference_output.shape)
-# print(f'out: \n{output_tensor} \nref: \n{reference_output}')
 
 # Print timing information
 

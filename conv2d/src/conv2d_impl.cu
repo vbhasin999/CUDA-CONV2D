@@ -4,7 +4,9 @@
 #define BLOCK_DIM_X 2
 #define BLOCK_DIM_Y 2
 #define BLOCK_DIM_Z 1
-#define PIXELS_PER_THREAD 16
+
+#define THREAD_TILE_X 16
+#define THREAD_TILE_Y 16
 
 // Add batch, stride and padding later
 // we could have 1 block <-> 1 output channel
@@ -17,29 +19,41 @@ __global__ void conv_kernel_basic(
     const T* __restrict__ filter, 
     int Cin, int H, int W, int Cout, int K) {
 
-    int out_x = threadIdx.x + blockIdx.x * blockDim.x;  // Output width index
-    int out_y = threadIdx.y + blockIdx.y * blockDim.y;  // Output height index
-    int in_c = blockIdx.z;                            // Input channel index                 
+    int out_x = (threadIdx.x + blockIdx.x * blockDim.x) * THREAD_TILE_X;  // Base output width index
+    int out_y = (threadIdx.y + blockIdx.y * blockDim.y) * THREAD_TILE_Y;  // Base output height index
+    int in_c = blockIdx.z;  // Input channel index                 
 
     int H_out = H - K + 1;
     int W_out = W - K + 1;
-    
-    if (out_x < H_out && out_y < W_out && in_c < Cin) {
-        // Loop over output channels in chunks
-        for (int out_c = threadIdx.z; out_c < Cout; out_c += BLOCK_DIM_Z) {
-            T local_sum = 0;
-            for (int kx = 0; kx < K; ++kx) { // Kernel rows
-                for (int ky = 0; ky < K; ++ky) { // Kernel columns
-                    int in_x = out_x + kx;
-                    int in_y = out_y + ky;
 
-                    if (in_x < W && in_y < H) {  // Bounds check
-                        local_sum += input[in_c * H * W + in_x * W + in_y] *
-                                        filter[(out_c * Cin * K * K )+ (in_c * K * K) + (kx * K) + ky];
+    if (in_c < Cin) {
+        for (int out_c = threadIdx.z; out_c < Cout; out_c += BLOCK_DIM_Z) {
+            T local_sum[THREAD_TILE_X][THREAD_TILE_Y] = {0};  // Accumulate results for each tile
+
+            for (int kx = 0; kx < K; ++kx) {
+                for (int ky = 0; ky < K; ++ky) {
+                    for (int ppx = 0; ppx < THREAD_TILE_X; ++ppx) {
+                        for (int ppy = 0; ppy < THREAD_TILE_Y; ++ppy) {
+                            int in_x = (out_x + ppx) + kx;
+                            int in_y = (out_y + ppy) + ky;
+
+                            if (in_x < W && in_y < H && (out_x + ppx) < H_out && (out_y + ppy) < W_out) {
+                                local_sum[ppx][ppy] += input[in_c * H * W + in_x * W + in_y] *
+                                                       filter[(out_c * Cin * K * K) + (in_c * K * K) + (kx * K) + ky];
+                            }
+                        }
                     }
                 }
-            }         
-            atomicAdd(&result[out_c * H_out * W_out + out_x * W_out + out_y], local_sum);
+            }
+
+            // Write results to global memory
+            for (int ppx = 0; ppx < THREAD_TILE_X; ++ppx) {
+                for (int ppy = 0; ppy < THREAD_TILE_Y; ++ppy) {
+                    if ((out_x + ppx) < H_out && (out_y + ppy) < W_out) {
+                        atomicAdd(&result[out_c * H_out * W_out + (out_x + ppx) * W_out + (out_y + ppy)], local_sum[ppx][ppy]);
+                    }
+                }
+            }
         }
     }
 }
@@ -76,8 +90,8 @@ void launch_conv2d_basic(T *h_result, const T *h_x, const T *h_y, int Cin, int H
 
     // Define grid and block dimensions
     dim3 blockDim(BLOCK_DIM_X, BLOCK_DIM_Y, BLOCK_DIM_Z);  
-    dim3 gridDim((H_out + blockDim.x - 1) / blockDim.x,
-                (W_out + blockDim.y - 1) / blockDim.y,
+    dim3 gridDim((H_out + (blockDim.x * THREAD_TILE_X) - 1) / (blockDim.x * THREAD_TILE_X),
+                (W_out + (blockDim.y * THREAD_TILE_Y) - 1) / (blockDim.y * THREAD_TILE_Y),
                 Cin);   
 
     // Launch kernel
