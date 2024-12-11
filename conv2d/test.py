@@ -18,11 +18,11 @@ args = parser.parse_args()
 Cin, H, W, Cout, K = args.Cin, args.H, args.W, args.Cout, args.K
 
 # Generate random input and filter tensors
-input_tensor = np.arange(2, Cin*H*W+2).astype(np.float32).reshape(Cin, H, W)#np.random.rand(Cin, H, W).astype(np.float32)  # Input: (Cin, H, W)
+input_tensor = np.random.rand(Cin, H, W).astype(np.float32)  # Input: (Cin, H, W)
 filter_tensor = np.random.rand(Cout, Cin, K, K).astype(np.float32)  # Filter: (Cout, Cin, K, K)
-filter_tensor = np.ones_like(filter_tensor) * 0.1
+# filter_tensor = np.arange(K*K).astype(np.float32).reshape(Cout, Cin, K, K)
 
-print(f"input\n{input_tensor} \nfilter\n{filter_tensor}")
+# print(f"input\n{input_tensor} \nfilter\n{filter_tensor}")
 
 # Reference implementation of convolution and time it
 H_out = H - K + 1
@@ -61,7 +61,7 @@ print("Are outputs close:", np.allclose(output_tensor, reference_output, atol=1e
 # print(f"\nCorrectness:")
 # print("Output tensor shape:", output_tensor.shape)
 # print("Reference tensor shape:", reference_output.shape)
-# print(f'out: \n{output_tensor} ref: \n{reference_output}')
+# print(f'out: \n{output_tensor} \nref: \n{reference_output}')
 
 # Print timing information
 

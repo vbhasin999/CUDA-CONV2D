@@ -19,45 +19,27 @@ __global__ void conv_kernel_basic(
 
     int out_x = threadIdx.x + blockIdx.x * blockDim.x;  // Output width index
     int out_y = threadIdx.y + blockIdx.y * blockDim.y;  // Output height index
-    int out_c = blockIdx.z;                            // Output channel index                 
+    int in_c = blockIdx.z;                            // Input channel index                 
 
     int H_out = H - K + 1;
     int W_out = W - K + 1;
-
-    // Shared memory for reduction
-    __shared__ T partial_sums[BLOCK_DIM_X][BLOCK_DIM_Y];  
-    // Initialize shared memory only once per block
-    if (threadIdx.z == 0) partial_sums[threadIdx.x][threadIdx.y]= 0.0f;
-
-    __syncthreads();
-
-    T local_sum = 0;
-    if (out_x < H_out && out_y < W_out) {
-        // Loop over input channels in chunks
-        for (int in_c = threadIdx.z; in_c < Cin; in_c += BLOCK_DIM_Z) {
+    
+    if (out_x < H_out && out_y < W_out && in_c < Cin) {
+        // Loop over output channels in chunks
+        for (int out_c = threadIdx.z; out_c < Cout; out_c += BLOCK_DIM_Z) {
+            T local_sum = 0;
             for (int kx = 0; kx < K; ++kx) { // Kernel rows
                 for (int ky = 0; ky < K; ++ky) { // Kernel columns
                     int in_x = out_x + kx;
                     int in_y = out_y + ky;
 
                     if (in_x < W && in_y < H) {  // Bounds check
-                        local_sum += input[in_c * H * W + in_y * W + in_x] *
-                                     filter[out_c * Cin * K * K + in_c * K * K + ky * K + kx];
+                        local_sum += input[in_c * H * W + in_x * W + in_y] *
+                                        filter[(out_c * Cin * K * K )+ (in_c * K * K) + (kx * K) + ky];
                     }
                 }
-            }
-        }
-
-        // Atomic addition to shared memory
-        atomicAdd(&partial_sums[threadIdx.x][threadIdx.y], local_sum);
-    }
-
-    __syncthreads();
-
-    // Write final result to global memory
-    if (threadIdx.z == 0) {
-        if (out_x < H_out && out_y < W_out) {
-            result[out_c * H_out * W_out + out_y * W_out + out_x] = partial_sums[threadIdx.x][threadIdx.y];
+            }         
+            atomicAdd(&result[out_c * H_out * W_out + out_x * W_out + out_y], local_sum);
         }
     }
 }
@@ -94,9 +76,9 @@ void launch_conv2d_basic(T *h_result, const T *h_x, const T *h_y, int Cin, int H
 
     // Define grid and block dimensions
     dim3 blockDim(BLOCK_DIM_X, BLOCK_DIM_Y, BLOCK_DIM_Z);  
-    dim3 gridDim((W_out + blockDim.x - 1) / blockDim.x,
-                (H_out + blockDim.y - 1) / blockDim.y,
-                Cout);   
+    dim3 gridDim((H_out + blockDim.x - 1) / blockDim.x,
+                (W_out + blockDim.y - 1) / blockDim.y,
+                Cin);   
 
     // Launch kernel
     conv_kernel_basic<<<gridDim, blockDim>>>(d_result, d_x, d_y, Cin, H, W, Cout, K);
@@ -132,25 +114,36 @@ __global__ void conv_kernel_opt(
     // should be of size blockDim.x + K - 1 * blockDim.y + K - 1 i.e. 
     // the receptive field of the block
     extern __shared__ T sInput[];
-    if ((threadIdx.z == 0) && (threadIdx.x % K == 0) && (threadIdx.y % K == 0)) {
-        for (int i = 0; i < K; ++i) {
-            for (int j = 0; j < K; ++j) {
-                int in_x = out_x + i;
-                int in_y = out_y + j;
-                
-                // printf("Block: (%d, %d, %d), Thread: (%d, %d, %d), loading: %f into smem\n",
-                //             blockIdx.x, blockIdx.y, blockIdx.z,
-                //             threadIdx.x, threadIdx.y, threadIdx.z,
-                //             input[in_c * H * W + in_y * W + in_x]);
-                sInput[(threadIdx.y + i) * (BLOCK_DIM_X + K - 1) + threadIdx.x + j] = (in_x < W && in_y < H) ? input[in_c * H * W + in_y * W + in_x] : 0.0f;
+    int smem_width = BLOCK_DIM_Y + K - 1;  // Shared memory width
+    int smem_height = BLOCK_DIM_X + K - 1; // Shared memory height
+
+    // Each thread loads part of the shared memory
+    for (int i = 0; i < K; ++i) {
+        for (int j = 0; j < K; ++j) {
+            int in_x = out_x + i;
+            int in_y = out_y + j;
+            int smem_idx = (threadIdx.x + i) * smem_width + (threadIdx.y + j);
+
+            if (in_x < W && in_y < H) {
+                sInput[smem_idx] = input[in_c * H * W + in_x * W + in_y];
+            } else {
+                sInput[smem_idx] = 0.0f;
             }
+
+            // printf("Block: (%d, %d, %d), Thread: (%d, %d, %d), in_x: %d, in_y: %d, smem_idx: %d, input_val: %f\n",
+            //     blockIdx.x, blockIdx.y, blockIdx.z,
+            //     threadIdx.x, threadIdx.y, threadIdx.z,
+            //     in_x, in_y, smem_idx,
+            //     sInput[smem_idx]);
         }
     }
 
     __syncthreads();
 
-    // if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0){
-    //     printf("smem loaded: %f %f %f %f", sInput[0], sInput[1], sInput[2],sInput[3]);
+    // if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {
+    //     for (int i = 0; i < smem_height * smem_width; ++i) {
+    //         printf("smem[%d]: %f input: %f\n", i, sInput[i], input[i]);
+    //     }
     // }
 
     
@@ -168,7 +161,7 @@ __global__ void conv_kernel_opt(
                     int in_y = out_y + ky;
 
                     if (in_x < W && in_y < H) {  // Bounds check
-                        local_sum += sInput[(threadIdx.y + kx) * (BLOCK_DIM_X + K - 1) + threadIdx.x + ky] *
+                        local_sum += sInput[(threadIdx.x + kx) * (BLOCK_DIM_Y + K - 1) + threadIdx.y + ky] *
                                         filter[(out_c * Cin * K * K )+ (in_c * K * K) + (kx * K) + ky];
                     }
                 }
@@ -177,7 +170,7 @@ __global__ void conv_kernel_opt(
             //                 blockIdx.x, blockIdx.y, blockIdx.z,
             //                 threadIdx.x, threadIdx.y, threadIdx.z,
             //                 local_sum);            
-            atomicAdd(&result[out_c * H_out * W_out + out_y * W_out + out_x], local_sum);
+            atomicAdd(&result[out_c * H_out * W_out + out_x * W_out + out_y], local_sum);
         }
     }
 }
@@ -213,8 +206,8 @@ void launch_conv2d_opt(T *h_result, const T *h_x, const T *h_y, int Cin, int H, 
 
     // Define grid and block dimensions
     dim3 blockDim(BLOCK_DIM_X, BLOCK_DIM_Y, BLOCK_DIM_Z);  
-    dim3 gridDim((W_out + blockDim.x - 1) / blockDim.x,
-                (H_out + blockDim.y - 1) / blockDim.y,
+    dim3 gridDim((H_out + blockDim.x - 1) / blockDim.x,
+                (W_out + blockDim.y - 1) / blockDim.y,
                 Cin);   
 
     size_t shared_mem_size = (BLOCK_DIM_X + K - 1) * (BLOCK_DIM_Y + K - 1) * sizeof(T);
