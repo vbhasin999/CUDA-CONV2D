@@ -3,11 +3,13 @@
 This project demonstrates the use of **MLIR** (Multi-Level Intermediate Representation) with **IREE** (Intermediate Representation Execution Environment). The workflow includes compiling MLIR files and executing the compiled artifacts using IREE tools. This project builds on [IREE MLIR Linalg Tutorial](https://iree.dev/community/blog/2024-01-29-iree-mlir-linalg-tutorial/). It demonstrates the use of MLIR with IREE for compiling and executing tensor computations.
 
 ## Project Roadmap
-- [ ] Implement Naive CUDA Conv2d
-- [ ] Implement optimized Conv2d
+- [x] Implement Naive CUDA Conv2d
+- [x] Implement optimized Conv2d
+- [ ] Further optimize, cooperative fetching for smem, vectorized ops, thread tiling, minimizing atomic adds
+- [ ] Add tensor core optimizations to conv2d opt
 - [ ] Implement CUTLASS Conv2d
 80% of the project goal achieved by this point
-- [ ] Implement MLIR conv2d (ideally in mlir, backup plan: maybe in pytorch -> MLIR, or Trition or some other higher level acceleration library)
+- [ ] Implement MLIR conv2d (ideally in mlir, backup plan: maybe in pytorch -> MLIR, or Trition or openACC or some other higher level acceleration library)
 - [ ] Conduct benchmarking and performance experiments
 100% of project goal achieved by this point, everything that follows are potential extensions
 - [ ] Depthwise separable convolutions over vanilla convolutions
