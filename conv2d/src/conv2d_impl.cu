@@ -1,9 +1,9 @@
 #include "conv2d_impl.h"
 #include <stdio.h>
 
-#define BLOCK_DIM_X 16
-#define BLOCK_DIM_Y 16
-#define BLOCK_DIM_Z 2
+#define BLOCK_DIM_X 2
+#define BLOCK_DIM_Y 2
+#define BLOCK_DIM_Z 1
 #define PIXELS_PER_THREAD 16
 
 // Add batch, stride and padding later
@@ -132,34 +132,52 @@ __global__ void conv_kernel_opt(
     // should be of size blockDim.x + K - 1 * blockDim.y + K - 1 i.e. 
     // the receptive field of the block
     extern __shared__ T sInput[];
-    if (threadIdx.z == 0) {
+    if ((threadIdx.z == 0) && (threadIdx.x % K == 0) && (threadIdx.y % K == 0)) {
         for (int i = 0; i < K; ++i) {
             for (int j = 0; j < K; ++j) {
                 int in_x = out_x + i;
                 int in_y = out_y + j;
-                sInput[i * K + j] = (in_x < W && in_y < H) ? input[in_c * H * W + in_y * W + in_x] : 0.0f;
+                
+                // printf("Block: (%d, %d, %d), Thread: (%d, %d, %d), loading: %f into smem\n",
+                //             blockIdx.x, blockIdx.y, blockIdx.z,
+                //             threadIdx.x, threadIdx.y, threadIdx.z,
+                //             input[in_c * H * W + in_y * W + in_x]);
+                sInput[(threadIdx.y + i) * (BLOCK_DIM_X + K - 1) + threadIdx.x + j] = (in_x < W && in_y < H) ? input[in_c * H * W + in_y * W + in_x] : 0.0f;
             }
         }
     }
 
     __syncthreads();
 
-    T local_sum = 0;
-    if (out_x < H_out && out_y < W_out) {
+    // if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0){
+    //     printf("smem loaded: %f %f %f %f", sInput[0], sInput[1], sInput[2],sInput[3]);
+    // }
+
+    
+    if (out_x < H_out && out_y < W_out && in_c < Cin) {
         // Loop over output channels in chunks
-        for (int out_c = threadIdx.z; out_c < Cout; in_c += BLOCK_DIM_Z) {
+        for (int out_c = threadIdx.z; out_c < Cout; out_c += BLOCK_DIM_Z) {
+            // printf("Block: (%d, %d, %d), Thread: (%d, %d, %d), out_c: %d\n",
+            //         blockIdx.x, blockIdx.y, blockIdx.z,
+            //         threadIdx.x, threadIdx.y, threadIdx.z,
+            //         out_c);
+            T local_sum = 0;
             for (int kx = 0; kx < K; ++kx) { // Kernel rows
                 for (int ky = 0; ky < K; ++ky) { // Kernel columns
                     int in_x = out_x + kx;
                     int in_y = out_y + ky;
 
                     if (in_x < W && in_y < H) {  // Bounds check
-                        local_sum += sInput[kx * K + ky] *
-                                        filter[out_c * Cin * K * K + in_c * K * K + ky * K + kx];
+                        local_sum += sInput[(threadIdx.y + kx) * (BLOCK_DIM_X + K - 1) + threadIdx.x + ky] *
+                                        filter[(out_c * Cin * K * K )+ (in_c * K * K) + (kx * K) + ky];
                     }
                 }
             }
-            result[out_c * H_out * W_out + out_y * W_out + out_x] += local_sum;
+            // printf("Block: (%d, %d, %d), Thread: (%d, %d, %d), local sum: %f\n",
+            //                 blockIdx.x, blockIdx.y, blockIdx.z,
+            //                 threadIdx.x, threadIdx.y, threadIdx.z,
+            //                 local_sum);            
+            atomicAdd(&result[out_c * H_out * W_out + out_y * W_out + out_x], local_sum);
         }
     }
 }
@@ -202,7 +220,7 @@ void launch_conv2d_opt(T *h_result, const T *h_x, const T *h_y, int Cin, int H, 
     size_t shared_mem_size = (BLOCK_DIM_X + K - 1) * (BLOCK_DIM_Y + K - 1) * sizeof(T);
 
     // Launch kernel
-    conv_kernel_basic<<<gridDim, blockDim, shared_mem_size>>>(d_result, d_x, d_y, Cin, H, W, Cout, K);
+    conv_kernel_opt<<<gridDim, blockDim, shared_mem_size>>>(d_result, d_x, d_y, Cin, H, W, Cout, K);
     cudaDeviceSynchronize();
     err = cudaGetLastError();
     if (err != cudaSuccess) {
