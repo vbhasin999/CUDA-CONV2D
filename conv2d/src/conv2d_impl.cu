@@ -8,6 +8,7 @@
 #define THREAD_TILE_X 16
 #define THREAD_TILE_Y 16
 
+#define INPUT_TILE 2
 // Add batch, stride and padding later
 // we could have 1 block <-> 1 output channel
 // and 1 thread <-> 1 output pixel
@@ -120,7 +121,7 @@ __global__ void conv_kernel_opt(
 
     int out_x = threadIdx.x + blockIdx.x * blockDim.x;  // Output width index
     int out_y = threadIdx.y + blockIdx.y * blockDim.y;  // Output height index
-    int in_c = blockIdx.z;                            // Input channel index                 
+    int out_c = blockIdx.z;                            // Input channel index                 
 
     int H_out = H - K + 1;
     int W_out = W - K + 1;
@@ -131,39 +132,41 @@ __global__ void conv_kernel_opt(
     int smem_width = BLOCK_DIM_Y + K - 1;  // Shared memory width
     int smem_height = BLOCK_DIM_X + K - 1; // Shared memory height
 
-    // Each thread loads part of the shared memory
-    for (int i = 0; i < K; ++i) {
-        for (int j = 0; j < K; ++j) {
-            int in_x = out_x + i;
-            int in_y = out_y + j;
-            int smem_idx = (threadIdx.x + i) * smem_width + (threadIdx.y + j);
+    for (int in_c = threadIdx.z; in_c < Cin; in_c += BLOCK_DIM_Z) {
 
-            if (in_x < W && in_y < H) {
-                sInput[smem_idx] = input[in_c * H * W + in_x * W + in_y];
-            } else {
-                sInput[smem_idx] = 0.0f;
+        // Each thread loads part of the shared memory
+        for (int i = 0; i < K; ++i) {
+            for (int j = 0; j < K; ++j) {
+                int in_x = out_x + i;
+                int in_y = out_y + j;
+                int smem_idx = (threadIdx.x + i) * smem_width + (threadIdx.y + j);
+
+                if (in_x < W && in_y < H) {
+                    sInput[smem_idx] = input[in_c * H * W + in_x * W + in_y];
+                } else {
+                    sInput[smem_idx] = 0.0f;
+                }
+
+                // printf("Block: (%d, %d, %d), Thread: (%d, %d, %d), in_x: %d, in_y: %d, smem_idx: %d, input_val: %f\n",
+                //     blockIdx.x, blockIdx.y, blockIdx.z,
+                //     threadIdx.x, threadIdx.y, threadIdx.z,
+                //     in_x, in_y, smem_idx,
+                //     sInput[smem_idx]);
             }
-
-            // printf("Block: (%d, %d, %d), Thread: (%d, %d, %d), in_x: %d, in_y: %d, smem_idx: %d, input_val: %f\n",
-            //     blockIdx.x, blockIdx.y, blockIdx.z,
-            //     threadIdx.x, threadIdx.y, threadIdx.z,
-            //     in_x, in_y, smem_idx,
-            //     sInput[smem_idx]);
         }
-    }
 
-    __syncthreads();
+        __syncthreads();
 
-    // if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {
-    //     for (int i = 0; i < smem_height * smem_width; ++i) {
-    //         printf("smem[%d]: %f input: %f\n", i, sInput[i], input[i]);
-    //     }
-    // }
+        // if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {
+        //     for (int i = 0; i < smem_height * smem_width; ++i) {
+        //         printf("smem[%d]: %f input: %f\n", i, sInput[i], input[i]);
+        //     }
+        // }
 
-    
-    if (out_x < H_out && out_y < W_out && in_c < Cin) {
-        // Loop over output channels in chunks
-        for (int out_c = threadIdx.z; out_c < Cout; out_c += BLOCK_DIM_Z) {
+        
+        if (out_x < H_out && out_y < W_out && in_c < Cin) {
+            // Loop over input channels in chunks
+
             // printf("Block: (%d, %d, %d), Thread: (%d, %d, %d), out_c: %d\n",
             //         blockIdx.x, blockIdx.y, blockIdx.z,
             //         threadIdx.x, threadIdx.y, threadIdx.z,
@@ -184,8 +187,12 @@ __global__ void conv_kernel_opt(
             //                 blockIdx.x, blockIdx.y, blockIdx.z,
             //                 threadIdx.x, threadIdx.y, threadIdx.z,
             //                 local_sum);            
-            atomicAdd(&result[out_c * H_out * W_out + out_x * W_out + out_y], local_sum);
+            // atomicAdd(&result[out_c * H_out * W_out + out_x * W_out + out_y], local_sum);
+            result[out_c * H_out * W_out + out_x * W_out + out_y] += local_sum;
         }
+
+        __syncthreads();
+
     }
 }
 
@@ -222,7 +229,7 @@ void launch_conv2d_opt(T *h_result, const T *h_x, const T *h_y, int Cin, int H, 
     dim3 blockDim(BLOCK_DIM_X, BLOCK_DIM_Y, BLOCK_DIM_Z);  
     dim3 gridDim((H_out + blockDim.x - 1) / blockDim.x,
                 (W_out + blockDim.y - 1) / blockDim.y,
-                Cin);   
+                Cout);   
 
     size_t shared_mem_size = (BLOCK_DIM_X + K - 1) * (BLOCK_DIM_Y + K - 1) * sizeof(T);
 
