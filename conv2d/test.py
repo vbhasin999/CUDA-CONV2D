@@ -31,14 +31,14 @@ start_time_ref = time.time()
 reference_output = conv2d.conv2d_ref(input_tensor, filter_tensor, Cin, H, W, Cout, K)
 end_time_ref = time.time()
 ref_time = end_time_ref - start_time_ref
-print(f"Reference Conv2D Execution Time: {ref_time:.6f} seconds")
+print(f"Reference Conv2D Execution Time: {ref_time*1000:.6f} miliseconds")
 
 
 start_time_cuda_basic = time.time()
 output_tensor = conv2d.conv2d_basic(input_tensor, filter_tensor, Cin, H, W, Cout, K)
 end_time_cuda_basic = time.time()
 cuda_time_basic = end_time_cuda_basic - start_time_cuda_basic
-print(f"CUDA Conv2D BASIC Execution Time: {cuda_time_basic:.6f} seconds")
+print(f"CUDA Conv2D BASIC Execution Time: {cuda_time_basic*1000:.6f} miliseconds")
 print(f"Speedup: {ref_time / cuda_time_basic :.2f}x")
 print("Are outputs close:", np.allclose(output_tensor, reference_output, atol=1e-5))
 # print(f'out: \n{output_tensor} \nref: \n{reference_output}')
@@ -50,7 +50,7 @@ start_time_cuda = time.time()
 output_tensor = conv2d.conv2d_opt(input_tensor, filter_tensor, Cin, H, W, Cout, K)
 end_time_cuda = time.time()
 cuda_time = end_time_cuda - start_time_cuda
-print(f"CUDA Conv2D OPT Execution Time: {cuda_time:.6f} seconds")
+print(f"CUDA Conv2D OPT Execution Time: {cuda_time*1000:.6f} miliseconds")
 print(f"Speedup: {ref_time / cuda_time :.2f}x")
 print("Are outputs close:", np.allclose(output_tensor, reference_output, atol=1e-5))
 

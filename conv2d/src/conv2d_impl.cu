@@ -1,12 +1,12 @@
 #include "conv2d_impl.h"
 #include <stdio.h>
 
-#define BLOCK_DIM_X 2
-#define BLOCK_DIM_Y 2
+#define BLOCK_DIM_X 16
+#define BLOCK_DIM_Y 16
 #define BLOCK_DIM_Z 1
 
-#define THREAD_TILE_X 16
-#define THREAD_TILE_Y 16
+#define THREAD_TILE_X 1
+#define THREAD_TILE_Y 1
 
 // Add batch, stride and padding later
 // we could have 1 block <-> 1 output channel
@@ -143,31 +143,14 @@ __global__ void conv_kernel_opt(
             } else {
                 sInput[smem_idx] = 0.0f;
             }
-
-            // printf("Block: (%d, %d, %d), Thread: (%d, %d, %d), in_x: %d, in_y: %d, smem_idx: %d, input_val: %f\n",
-            //     blockIdx.x, blockIdx.y, blockIdx.z,
-            //     threadIdx.x, threadIdx.y, threadIdx.z,
-            //     in_x, in_y, smem_idx,
-            //     sInput[smem_idx]);
         }
     }
 
     __syncthreads();
-
-    // if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {
-    //     for (int i = 0; i < smem_height * smem_width; ++i) {
-    //         printf("smem[%d]: %f input: %f\n", i, sInput[i], input[i]);
-    //     }
-    // }
-
     
     if (out_x < H_out && out_y < W_out && in_c < Cin) {
         // Loop over output channels in chunks
         for (int out_c = threadIdx.z; out_c < Cout; out_c += BLOCK_DIM_Z) {
-            // printf("Block: (%d, %d, %d), Thread: (%d, %d, %d), out_c: %d\n",
-            //         blockIdx.x, blockIdx.y, blockIdx.z,
-            //         threadIdx.x, threadIdx.y, threadIdx.z,
-            //         out_c);
             T local_sum = 0;
             for (int kx = 0; kx < K; ++kx) { // Kernel rows
                 for (int ky = 0; ky < K; ++ky) { // Kernel columns
@@ -179,11 +162,7 @@ __global__ void conv_kernel_opt(
                                         filter[(out_c * Cin * K * K )+ (in_c * K * K) + (kx * K) + ky];
                     }
                 }
-            }
-            // printf("Block: (%d, %d, %d), Thread: (%d, %d, %d), local sum: %f\n",
-            //                 blockIdx.x, blockIdx.y, blockIdx.z,
-            //                 threadIdx.x, threadIdx.y, threadIdx.z,
-            //                 local_sum);            
+            }         
             atomicAdd(&result[out_c * H_out * W_out + out_x * W_out + out_y], local_sum);
         }
     }
