@@ -44,6 +44,15 @@ print("Are outputs close:", np.allclose(output_tensor, reference_output, atol=1e
 # print(f'out: \n{output_tensor} \nref: \n{reference_output}')
 
 
+start_time_cuda_cout = time.time()
+output_tensor = conv2d.conv2d_cout(input_tensor, filter_tensor, Cin, H, W, Cout, K)
+end_time_cuda_cout = time.time()
+cuda_time_cout = end_time_cuda_cout - start_time_cuda_cout
+print(f"CUDA Conv2D COUT Execution Time: {cuda_time_cout*1000:.6f} miliseconds")
+print(f"Speedup: {ref_time / cuda_time_cout :.2f}x")
+print("Are outputs close:", np.allclose(output_tensor, reference_output, atol=1e-5))
+
+
 
 # Call the conv2d function and time it
 start_time_cuda = time.time()
